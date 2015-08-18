@@ -4,7 +4,7 @@ import numpy as np
 import skimage
 import ipdb
 
-def crop_image(x, target_height=227, target_width=227):
+def crop_image(x, target_height=224, target_width=224):
     print x
     image = skimage.img_as_float(skimage.io.imread(x)).astype(np.float32)
 
@@ -24,13 +24,13 @@ def crop_image(x, target_height=227, target_width=227):
 
     return cv2.resize(resized_image, (target_height, target_width))
 
-deploy = '/home/taeksoo/Package/caffe/models/bvlc_reference_caffenet/deploy.prototxt'
-model = '/home/taeksoo/Package/caffe/models/bvlc_reference_caffenet/bvlc_reference_caffenet.caffemodel'
-mean = '/home/taeksoo/Package/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
+# deploy = '/home/taeksoo/Package/caffe/models/bvlc_reference_caffenet/deploy.prototxt'
+# model = '/home/taeksoo/Package/caffe/models/bvlc_reference_caffenet/bvlc_reference_caffenet.caffemodel'
+mean = '/home/ubuntu/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
 
 class CNN(object):
 
-    def __init__(self, deploy=deploy, model=model, mean=mean, batch_size=100, width=227, height=227):
+    def __init__(self, deploy, model, mean=mean, batch_size=100, width=224, height=224):
 
         self.deploy = deploy
         self.model = model
@@ -44,9 +44,8 @@ class CNN(object):
         self.height = height
 
     def get_net(self):
-        net = caffe.Net(self.deploy, self.model)
-        net.set_mode_gpu()
-        net.set_phase_test()
+        caffe.set_mode_gpu()
+        net = caffe.Net(self.deploy, self.model, caffe.TEST)
 
         transformer = caffe.io.Transformer({'data':net.blobs['data'].data.shape})
         transformer.set_transpose('data', (2,0,1))
