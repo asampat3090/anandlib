@@ -1,0 +1,5 @@
+caffe
+cv2
+numpy
+skimage
+ipdb
