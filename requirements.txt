@@ -1,5 +1,3 @@
-caffe
-cv2
 numpy
-skimage
+scikit-image
 ipdb

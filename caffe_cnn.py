@@ -44,8 +44,9 @@ class CNN(object):
         self.height = height
 
     def get_net(self):
-        caffe.set_mode_gpu()
-        net = caffe.Net(self.deploy, self.model, caffe.TEST)
+        net = caffe.Net(self.deploy, self.model)
+        net.set_mode_gpu()
+        net.set_phase_test()
 
         transformer = caffe.io.Transformer({'data':net.blobs['data'].data.shape})
         transformer.set_transpose('data', (2,0,1))
