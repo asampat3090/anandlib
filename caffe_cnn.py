@@ -4,9 +4,8 @@ import numpy as np
 import skimage
 import ipdb
 
-def crop_image(x, target_height=224, target_width=224):
-    print x
-    image = skimage.img_as_float(skimage.io.imread(x)).astype(np.float32)
+def crop_image(image_path, target_height=224, target_width=224):
+    image = skimage.img_as_float(skimage.io.imread(image_path)).astype(np.float32)
 
     height, width, rgb = image.shape
     if width == height:
@@ -59,6 +58,7 @@ class CNN(object):
         iter_until = len(image_list) + self.batch_size
         all_feats = np.zeros([len(image_list)] + layer_sizes)
 
+        batch_count = 0
         for start, end in zip(range(0, iter_until, self.batch_size), \
                               range(self.batch_size, iter_until, self.batch_size)):
 
@@ -75,5 +75,6 @@ class CNN(object):
             feats = out[layers]
 
             all_feats[start:end] = feats
-
+            batch_count += 1
+            print "processing batch #: %d" % batch_count
         return all_feats
