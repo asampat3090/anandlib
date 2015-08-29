@@ -1,3 +1,5 @@
 numpy
 scikit-image
-ipdb
+scikit-learn
+sparkit-learn
+pdb
