@@ -1,4 +1,6 @@
 numpy
+theano
+orderedset
 scikit-image
 scikit-learn
 sparkit-learn

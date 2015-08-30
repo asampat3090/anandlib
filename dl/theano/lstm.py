@@ -1,3 +1,23 @@
+from collections import OrderedDict
+import cPickle as pkl
+import sys
+import re
+import time
+import numpy as np
+import pandas as pd
+from orderedset import OrderedSet
+
+# import relevant theano libraries
+import theano
+from theano import config
+import theano.tensor as tensor
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
+
+# import internal libraries
+# sys.path.insert(0, '../..')
+# from util.files import create_path
+import pdb
+
 class BinaryClassifierLSTM(object):
     """
     Binary classifier LSTM wrapper using Theano
@@ -6,6 +26,10 @@ class BinaryClassifierLSTM(object):
         # ff: Feed Forward (normal neural net), only useful to put after lstm
         #     before the classifier.
         self.layers = {'lstm': (param_init_lstm, lstm_layer)}
+
+    ###############################################
+    ############### INITIALIZATIONS ###############
+    ###############################################
 
     def init_params(options):
         """
@@ -16,16 +40,16 @@ class BinaryClassifierLSTM(object):
         """
         params = OrderedDict()
         # embedding
-        randn = numpy.random.rand(options['n_words'],
+        randn = np.random.rand(options['n_words'],
                                   options['dim_proj'])
         params['Wemb'] = (0.01 * randn).astype(config.floatX)
         params = get_layer(options['encoder'])[0](options,
                                                   params,
                                                   prefix=options['encoder'])
         # classifier
-        params['U'] = 0.01 * numpy.random.randn(options['dim_proj'],
+        params['U'] = 0.01 * np.random.randn(options['dim_proj'],
                                                 options['ydim']).astype(config.floatX)
-        params['b'] = numpy.zeros((options['ydim'],)).astype(config.floatX)
+        params['b'] = np.zeros((options['ydim'],)).astype(config.floatX)
 
         return params
 
@@ -47,20 +71,24 @@ class BinaryClassifierLSTM(object):
 
         :see: init_params
         """
-        W = numpy.concatenate([ortho_weight(options['dim_proj']),
+        W = np.concatenate([ortho_weight(options['dim_proj']),
                                ortho_weight(options['dim_proj']),
                                ortho_weight(options['dim_proj']),
                                ortho_weight(options['dim_proj'])], axis=1)
         params[_p(prefix, 'W')] = W
-        U = numpy.concatenate([ortho_weight(options['dim_proj']),
+        U = np.concatenate([ortho_weight(options['dim_proj']),
                                ortho_weight(options['dim_proj']),
                                ortho_weight(options['dim_proj']),
                                ortho_weight(options['dim_proj'])], axis=1)
         params[_p(prefix, 'U')] = U
-        b = numpy.zeros((4 * options['dim_proj'],))
+        b = np.zeros((4 * options['dim_proj'],))
         params[_p(prefix, 'b')] = b.astype(config.floatX)
 
         return params
+
+    ###############################################
+    ############## HELPER FUNCTIONS ###############
+    ###############################################
 
     def get_layer(name):
         """
@@ -73,8 +101,8 @@ class BinaryClassifierLSTM(object):
         """
         Return matrix orthogonal to the weight matrix.
         """
-        W = numpy.random.randn(ndim, ndim)
-        u, s, v = numpy.linalg.svd(W)
+        W = np.random.randn(ndim, ndim)
+        u, s, v = np.linalg.svd(W)
         return u.astype(config.floatX)
 
     def load_params(path, params):
@@ -84,7 +112,7 @@ class BinaryClassifierLSTM(object):
         Output:
         params - dictionary of parameters w/ loaded values
         """
-        pp = numpy.load(path)
+        pp = np.load(path)
         for kk, vv in params.iteritems():
             if kk not in pp:
                 raise Warning('%s is not in the archive' % kk)
@@ -129,10 +157,10 @@ class BinaryClassifierLSTM(object):
         dim_proj = options['dim_proj']
         rval, updates = theano.scan(_step,
                                     sequences=[mask, state_below],
-                                    outputs_info=[tensor.alloc(numpy_floatX(0.),
+                                    outputs_info=[tensor.alloc(np_floatX(0.),
                                                                n_samples,
                                                                dim_proj),
-                                                  tensor.alloc(numpy_floatX(0.),
+                                                  tensor.alloc(np_floatX(0.),
                                                                n_samples,
                                                                dim_proj)],
                                     name=_p(prefix, '_layers'),
@@ -143,7 +171,7 @@ class BinaryClassifierLSTM(object):
         trng = RandomStreams(SEED)
 
         # Used for dropout.
-        use_noise = theano.shared(numpy_floatX(0.))
+        use_noise = theano.shared(np_floatX(0.))
 
         x = tensor.matrix('x', dtype='int64')
         mask = tensor.matrix('mask', dtype=config.floatX)
@@ -184,13 +212,13 @@ class BinaryClassifierLSTM(object):
         the probabilities of new examples.
         """
         n_samples = len(data[0])
-        probs = numpy.zeros((n_samples, 2)).astype(config.floatX)
+        probs = np.zeros((n_samples, 2)).astype(config.floatX)
 
         n_done = 0
 
         for _, valid_index in iterator:
             x, mask, y = prepare_data([data[0][t] for t in valid_index],
-                                      numpy.array(data[1])[valid_index],
+                                      np.array(data[1])[valid_index],
                                       maxlen=None)
             pred_probs = f_pred_prob(x, mask)
             probs[valid_index, :] = pred_probs
@@ -212,14 +240,111 @@ class BinaryClassifierLSTM(object):
         valid_err = 0
         for _, valid_index in iterator:
             x, mask, y = prepare_data([data[0][t] for t in valid_index],
-                                      numpy.array(data[1])[valid_index],
+                                      np.array(data[1])[valid_index],
                                       maxlen=None)
             preds = f_pred(x, mask)
-            targets = numpy.array(data[1])[valid_index]
+            targets = np.array(data[1])[valid_index]
             valid_err += (preds == targets).sum()
-        valid_err = 1. - numpy_floatX(valid_err) / len(data[0])
+        valid_err = 1. - np_floatX(valid_err) / len(data[0])
 
         return valid_err
+
+    ###############################################
+    ############### DATA PROCESSING ###############
+    ###############################################
+
+    def split_sentence(sent):
+        """
+        Splits sentence into words and punctuations
+        """
+        return re.findall(r"[\w']+|[.,!?;]", sent)
+
+    def check_dir_files(dataset_path):
+        """
+        Check if directory exists or files present
+        """
+        # check if the directory is present
+        if not os.path.exists(dataset_path):
+            print "The dataset path does not exist"
+            sys.exit(1)
+        # check if all files are available
+        filenames = ['train.txt', 'val.txt', 'test.txt']
+        filepaths = []
+        for f in filenames:
+            filepath = os.path.join(dataset_path,f)
+            if not os.path.isfile(filepath):
+                print "%s does not exist in the dataset path given" % f
+                sys.exit(1)
+            filepaths.append(filepath)
+        return filepaths
+
+    def build_dict(dataset_path):
+        """
+        If 'dictionary.pkl' not present,
+        Build and return dictionary with all words + indices
+        else,
+        Return dictionary from 'dictionary.pkl'
+        """
+        dict_path = os.path.join(dataset_path, 'dictionary.pkl')
+        filepaths = check_dir_files(dataset_path)
+        if os.path.isfile(dict_path):
+            dictionary = pkl.load(dict_path)
+            return dictionary
+        dictionary = OrderedSet()
+        for f in filepaths:
+            print "dictionary.pkl file not found - building dictionary..."
+            df = pd.read_csv(f)
+            sentences = list(df.ix[:,0])
+            from s in sentences:
+                words = split_sentence(s)
+                dictionary = dictionary | OrderedSet(words)
+        # write dictionary to pkl file
+        pkl.dump(dictionary, open('dictionary.pkl', 'wb'))
+
+        # return dictionary
+        return dictionary
+
+    def load_data(dataset_path, n_words=100000, valid_portion=0.1, maxlen=None,
+                    sort_by_len=True):
+        """
+        Loads dataset files from the directory
+
+        Input:
+        dataset_path (String) - location of train.txt, val.txt, and test.txt files
+        n_words (int) - The number of word to keep in the vocabulary.
+            All extra words are set to unknow (1).
+        valid_portion (float) - The proportion of the full train set used for
+            the validation set.
+        maxlen (int or None) - the max sequence length we use in the train/valid set.
+        sort_by_len (bool) - Sort by the sequence length for the train,
+            valid and test set. This allow faster execution as it cause
+            less padding per minibatch. Another mechanism must be used to
+            shuffle the train set at each epoch.
+
+        Output:
+        (train, valid, test) - each is a tuple w/ list of x-values [0] and y-values [1]
+        """
+        # check if valid directory + files
+        filepaths = check_dir_files(dataset_path)
+        # load the dictionary
+        dictionary = build_dict(dataset_path)
+        # load the data from files
+        result = ([],[],[])
+        for fidx, f in enumerate(filepaths):
+            df = pd.read_csv(f)
+            sentences = list(df.ix[:, 0])
+            labels = list(df.ix[:, 1])
+            from sidx, s in enumerate(sentences):
+                words = split_sentence(s)
+                # convert to indices
+                words = [dictionary.index(w) for w in words]
+                sentences[sidx] = words
+            result[fidx] = (sentences, labels)
+        return result
+
+    ###############################################
+    ############### TRAINING & TEST ###############
+    ###############################################
 
     def train_lstm(
         dim_proj=128,  # word embeding dimension and LSTM number of hidden units.
@@ -237,7 +362,7 @@ class BinaryClassifierLSTM(object):
         maxlen=100,  # Sequence longer then this get ignored
         batch_size=16,  # The batch size during training.
         valid_batch_size=64,  # The batch size used for validation/test set.
-        dataset='imdb',
+        dataset_path='',
 
         # Parameter for extra option
         noise_std=0.,
@@ -251,27 +376,25 @@ class BinaryClassifierLSTM(object):
         model_options = locals().copy()
         print "model options", model_options
 
-        load_data, prepare_data = get_dataset(dataset)
-
         print 'Loading data'
-        train, valid, test = load_data(n_words=n_words, valid_portion=0.05,
+        train, valid, test = load_data(dataset_path=dataset_path, n_words=n_words, valid_portion=0.05,
                                        maxlen=maxlen)
         if test_size > 0:
             # The test set is sorted by size, but we want to keep random
             # size example.  So we must select a random selection of the
             # examples.
-            idx = numpy.arange(len(test[0]))
-            numpy.random.shuffle(idx)
+            idx = np.arange(len(test[0]))
+            np.random.shuffle(idx)
             idx = idx[:test_size]
             test = ([test[0][n] for n in idx], [test[1][n] for n in idx])
 
-        ydim = numpy.max(train[1]) + 1
+        ydim = np.max(train[1]) + 1
 
         model_options['ydim'] = ydim
 
         print 'Building model'
-        # This create the initial parameters as numpy ndarrays.
-        # Dict name (string) -> numpy ndarray
+        # This create the initial parameters as np ndarrays.
+        # Dict name (string) -> np ndarray
         params = init_params(model_options)
 
         if reload_model:
@@ -287,7 +410,7 @@ class BinaryClassifierLSTM(object):
          y, f_pred_prob, f_pred, cost) = build_model(tparams, model_options)
 
         if decay_c > 0.:
-            decay_c = theano.shared(numpy_floatX(decay_c), name='decay_c')
+            decay_c = theano.shared(np_floatX(decay_c), name='decay_c')
             weight_decay = 0.
             weight_decay += (tparams['U'] ** 2).sum()
             weight_decay *= decay_c
@@ -338,7 +461,7 @@ class BinaryClassifierLSTM(object):
                     y = [train[1][t] for t in train_index]
                     x = [train[0][t]for t in train_index]
 
-                    # Get the data in numpy.ndarray format
+                    # Get the data in np.ndarray format
                     # This swap the axis!
                     # Return something of shape (minibatch maxlen, n samples)
                     x, mask, y = prepare_data(x, y)
@@ -347,25 +470,25 @@ class BinaryClassifierLSTM(object):
                     cost = f_grad_shared(x, mask, y)
                     f_update(lrate)
 
-                    if numpy.isnan(cost) or numpy.isinf(cost):
+                    if np.isnan(cost) or np.isinf(cost):
                         print 'NaN detected'
                         return 1., 1., 1.
 
-                    if numpy.mod(uidx, dispFreq) == 0:
+                    if np.mod(uidx, dispFreq) == 0:
                         print 'Epoch ', eidx, 'Update ', uidx, 'Cost ', cost
 
-                    if saveto and numpy.mod(uidx, saveFreq) == 0:
+                    if saveto and np.mod(uidx, saveFreq) == 0:
                         print 'Saving...',
 
                         if best_p is not None:
                             params = best_p
                         else:
                             params = unzip(tparams)
-                        numpy.savez(saveto, history_errs=history_errs, **params)
+                        np.savez(saveto, history_errs=history_errs, **params)
                         pkl.dump(model_options, open('%s.pkl' % saveto, 'wb'), -1)
                         print 'Done'
 
-                    if numpy.mod(uidx, validFreq) == 0:
+                    if np.mod(uidx, validFreq) == 0:
                         use_noise.set_value(0.)
                         train_err = pred_error(f_pred, prepare_data, train, kf)
                         valid_err = pred_error(f_pred, prepare_data, valid,
@@ -375,7 +498,7 @@ class BinaryClassifierLSTM(object):
                         history_errs.append([valid_err, test_err])
 
                         if (uidx == 0 or
-                            valid_err <= numpy.array(history_errs)[:,
+                            valid_err <= np.array(history_errs)[:,
                                                                    0].min()):
 
                             best_p = unzip(tparams)
@@ -385,7 +508,7 @@ class BinaryClassifierLSTM(object):
                                'Test ', test_err)
 
                         if (len(history_errs) > patience and
-                            valid_err >= numpy.array(history_errs)[:-patience,
+                            valid_err >= np.array(history_errs)[:-patience,
                                                                    0].min()):
                             bad_counter += 1
                             if bad_counter > patience:
@@ -415,7 +538,7 @@ class BinaryClassifierLSTM(object):
 
         print 'Train ', train_err, 'Valid ', valid_err, 'Test ', test_err
         if saveto:
-            numpy.savez(saveto, train_err=train_err,
+            np.savez(saveto, train_err=train_err,
                         valid_err=valid_err, test_err=test_err,
                         history_errs=history_errs, **best_p)
         print 'The code run for %d epochs, with %f sec/epochs' % (
@@ -432,7 +555,7 @@ class BinaryClassifierLSTM(object):
         maxlen=100,  # Sequence longer then this get ignored
         batch_size=16,  # The batch size during training.
         valid_batch_size=64,  # The batch size used for validation/test set.
-        dataset='imdb',
+        dataset='',
         use_dropout=False,
         # Parameter for extra option
         noise_std=0.
@@ -442,17 +565,15 @@ class BinaryClassifierLSTM(object):
         model_options = locals().copy()
         print "model options", model_options
 
-        load_data, prepare_data = get_dataset('imdb')
-
         print 'Loading data'
-        train, valid, test = load_data(n_words=n_words, valid_portion=0.05,
+        train, valid, test = load_data(dataset_path=dataset_path, n_words=n_words, valid_portion=0.05,
                                        maxlen=maxlen)
-        ydim = numpy.max(train[1]) + 1
+        ydim = np.max(train[1]) + 1
         model_options['ydim'] = ydim
 
         print 'Building model'
-        # This create the initial parameters as numpy ndarrays.
-        # Dict name (string) -> numpy ndarray
+        # This create the initial parameters as np ndarrays.
+        # Dict name (string) -> np ndarray
         params = init_params(model_options)
         load_params('lstm_model.npz', params)
         tparams = init_tparams(params)
