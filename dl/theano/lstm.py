@@ -1,5 +1,9 @@
 '''
-Build a tweet sentiment analyzer
+Binary Classifier for "Tweet Sentiment" - uses imdb model
+
+See original code + explanation here:
+
+http://deeplearning.net/tutorial/lstm.html
 '''
 from collections import OrderedDict
 import cPickle as pkl
