@@ -2,7 +2,7 @@ import caffe
 from images import crop_image
 import numpy as np
 
-mean = 'ilsvrc_2012_mean.npy'
+mean = 'data/ilsvrc_2012_mean.npy'
 
 
 class CNN(object):
@@ -24,7 +24,7 @@ class CNN(object):
         caffe.set_mode_gpu()
         net = caffe.Net(self.deploy, self.model, caffe.TEST)
 
-        transformer = caffe.io.Transformer({'data':net.blobs['data'].data.shape})
+        transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
         transformer.set_transpose('data', (2,0,1))
         transformer.set_mean('data', np.load(self.mean).mean(1).mean(1))
         transformer.set_raw_scale('data', 255)

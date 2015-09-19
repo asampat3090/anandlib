@@ -1,8 +1,14 @@
 import numpy as np
+import theano
 from theano import config
+from collections import OrderedDict
+
+###############################################
+################ DATA HELPERS #################
+###############################################
 
 def numpy_floatX(data):
-    return numpy.asarray(data, dtype=config.floatX)
+    return np.asarray(data, dtype=config.floatX)
 
 def get_minibatches_idx(n, minibatch_size, shuffle=False):
     """
@@ -17,10 +23,10 @@ def get_minibatches_idx(n, minibatch_size, shuffle=False):
     minibatches - Lists of tuples w/ (idx, []) of minibatches
     """
 
-    idx_list = numpy.arange(n, dtype="int32")
+    idx_list = np.arange(n, dtype="int32")
 
     if shuffle:
-        numpy.random.shuffle(idx_list)
+        np.random.shuffle(idx_list)
 
     minibatches = []
     minibatch_start = 0
@@ -56,3 +62,46 @@ def _p(pp, name):
     Return string representation
     """
     return '%s_%s' % (pp, name)
+
+###############################################
+############### INIT HELPERS #################
+###############################################
+
+def init_tparams(params):
+    """
+    Initialize theano parameters - make theano.shared vars from param instances
+
+    Output:
+    tparams - theano params as dictionary
+    """
+    tparams = OrderedDict()
+    for kk, pp in params.iteritems():
+        tparams[kk] = theano.shared(params[kk], name=kk)
+    return tparams
+
+###############################################
+############### MODEL HELPERS #################
+###############################################
+
+def ortho_weight(ndim):
+    """
+    Return matrix orthogonal to the weight matrix.
+    """
+    W = np.random.randn(ndim, ndim)
+    u, s, v = np.linalg.svd(W)
+    return u.astype(config.floatX)
+
+def load_params(path, params):
+    """
+    Load the parameters from a param file into local params var
+
+    Output:
+    params - dictionary of parameters w/ loaded values
+    """
+    pp = np.load(path)
+    for kk, vv in params.iteritems():
+        if kk not in pp:
+            raise Warning('%s is not in the archive' % kk)
+        params[kk] = pp[kk]
+
+    return params

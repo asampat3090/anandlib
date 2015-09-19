@@ -1,3 +1,7 @@
+import theano
+import theano.tensor as T
+from helpers import numpy_floatX
+
 def sgd(lr, tparams, grads, x, mask, y, cost):
     """
     Stochastic Gradient Descent Optimization
@@ -48,7 +52,7 @@ def adadelta(lr, tparams, grads, x, mask, y, cost):
     f_grad_shared = theano.function([x, mask, y], cost, updates=zgup + rg2up,
                                     name='adadelta_f_grad_shared')
 
-    updir = [-tensor.sqrt(ru2 + 1e-6) / tensor.sqrt(rg2 + 1e-6) * zg
+    updir = [-T.sqrt(ru2 + 1e-6) / T.sqrt(rg2 + 1e-6) * zg
              for zg, ru2, rg2 in zip(zipped_grads,
                                      running_up2,
                                      running_grads2)]
@@ -89,7 +93,7 @@ def rmsprop(lr, tparams, grads, x, mask, y, cost):
     updir = [theano.shared(p.get_value() * numpy_floatX(0.),
                            name='%s_updir' % k)
              for k, p in tparams.iteritems()]
-    updir_new = [(ud, 0.9 * ud - 1e-4 * zg / tensor.sqrt(rg2 - rg ** 2 + 1e-4))
+    updir_new = [(ud, 0.9 * ud - 1e-4 * zg / T.sqrt(rg2 - rg ** 2 + 1e-4))
                  for ud, zg, rg, rg2 in zip(updir, zipped_grads, running_grads,
                                             running_grads2)]
     param_up = [(p, p + udn[1])
