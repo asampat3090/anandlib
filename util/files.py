@@ -1,4 +1,5 @@
 import os
+import sys
 
 def create_path(path):
     """
@@ -24,3 +25,19 @@ def cleanup_string(s):
             return result
         except:
             return '...error decoding...'
+
+# http://stackoverflow.com/a/13895723/2626090
+def reporthook(blocknum, blocksize, totalsize):
+    """
+    Progress bar callback function for urlretrieve
+    """
+    readsofar = blocknum * blocksize
+    if totalsize > 0:
+        percent = readsofar * 1e2 / totalsize
+        s = "\r%5.1f%% %*d / %d" % (
+            percent, len(str(totalsize)), readsofar, totalsize)
+        sys.stderr.write(s)
+        if readsofar >= totalsize: # near the end
+            sys.stderr.write("\n")
+    else: # total size is unknown
+        sys.stderr.write("read %d\n" % (readsofar,))
